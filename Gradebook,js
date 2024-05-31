@@ -1,0 +1,213 @@
+//Creating class for error hierarchy
+class GradeBookError extends Error{}
+class InvalidGradeError extends GradeBookError{}
+class InvalidCreditsError extends InvalidGradeError{}
+class InvalidValueError extends InvalidGradeError{}
+class DuplicatedGradeError extends GradeBookError{}
+class InvalidDegreeError extends GradeBookError{} // Fixed typo in the class name
+class MissingCreditsError extends GradeBookError{} // Fixed typo in the class name
+
+//Class for grade without value
+class Grade{
+  constructor(name,credits){
+    this.name=name
+    //Checking if credits are valid
+    if(Number(credits) && credits>0)
+      this.credits=Number(credits)
+    else throw new InvalidCreditsError("Credits must be a positive number")
+  }
+  //Creating method for checking if two exams are equals
+  equals(g){
+    return (g.name==this.name) && (g.credits==this.credits)
+  }
+  //Creating method for exam's string rappresentation
+  toString(){
+    return `-Name: ${this.name}, Credits: ${this.credits}` // Fixed string interpolation syntax
+  }
+
+}
+
+//Class for grade with value
+class GradeWithValue extends Grade{
+  constructor(name,credits,grade,honors=false){
+    super(name,credits)
+    //Checking if grade is a number
+    if(!Number(grade))
+      throw new InvalidValueError("Grade must be a number")
+    grade=Number(grade)
+    //Checking if grade is valid
+    if(grade<18 || grade>30)
+      throw new InvalidValueError("Grade must be a number between 18 and 30")
+    this.grade=grade
+    //Checking if honors is valid (you can't get honors if your grade is less than 30)
+    if(honors && grade<30) // Fixed condition to check if grade is less than 30 for honors
+      throw new InvalidValueError("In order to get honors you need a grade equal to 30")
+    this.honors=honors
+  }
+  //Creating method for exam's string rappresentation
+  toString(){
+    let s = super.toString()
+    s += `, Grade: ${this.grade}` // Fixed string interpolation syntax
+    //Checking if there is honors
+    if (this.honors) // Fixed reference to honors variable
+      s += ` (with honors)`
+    return s; // Added return statement
+  }
+}
+
+//Class for the gradebook
+class GradeBook{
+  constructor(totalCredits){
+    this.grades=[]
+    if(!(Number(totalCredits)) || Number(totalCredits)<0)
+      throw new InvalidDegreeError("Degree's credits must be a positive number") // Fixed class name
+    this.totalCredits=totalCredits
+  }
+  //Method for adding a grade
+  register(grade){
+    //Checking if the grade is actually a grade
+    if(!(grade instanceof Grade))
+      throw new TypeError("The grade is not of the correct type")
+    //Checking if the grade is already registered
+    for (let g of this.grades){ // Fixed missing 'let' keyword
+      if(grade.equals(g))
+        throw new DuplicatedGradeError("Grade already registered")
+    }
+    this.grades.push(grade)
+  }
+  //Getter to get credits of the grade
+  get credits(){
+    let credits=0
+    for(let c of this.grades) credits+=c.credits
+    return credits
+  }
+  //Getter to get missing credits
+  get missingCredits(){
+    return this.totalCredits - this.credits
+  }
+  //Getter to get average grade
+  get average(){
+    let sum=0
+    let credits=0
+    for (let g of this.grades){
+      if(g instanceof GradeWithValue){
+        if(g.honors) sum+=32*g.credits
+        else sum+=g.grade*g.credits
+        credits +=g.credits
+      }
+    }
+    return Math.round(10 * sum/credits)/10
+  }
+  //Getter to get starting grade
+  get startingGrade(){
+    if(this.missingCredits>0)
+      throw new MissingCreditsError(this.missingCredits + " credits are still missing")
+    return Math.round(this.average*110/30)
+  }
+  //Method to print a string representing the gradebook
+  toString(){
+    let s = "Grades\n"
+    for (let g of this.grades){
+      s += g.toString() + "\n" // Fixed method call
+    }
+    s += `Earned credits: ${this.credits}/${this.totalCredits}` // Fixed string interpolation syntax
+    return s
+  }
+}
+
+//Class for the gradebook of a Bachelor
+class BachelorGradeBook extends GradeBook{
+  constructor(){
+    super(180)
+  }
+}
+//Class for the gradebook of a Master
+class MasterGradeBook extends GradeBook{
+  constructor(){
+    super(120)
+  }
+}
+
+
+
+//Code for the command line (copied from the teacher)
+  const default_prompt = require("prompt-sync")();
+  prompt = (x) => (default_prompt(x + " "))
+
+  // CLI - supporting functions
+  function getChoice() {
+    console.log("\nInsert one of the following options")
+    console.log(" (a) register a grade, \n (b) display gradebook,\n (c) visualize average grade,\n (d) visualize degree's starting grade\n(Type 'x' to exit)")
+    let choice = prompt("Choice ")
+    return choice
+  }
+  function registerGrade(gradebook) {
+    let name = prompt("Name ")
+    let credits = prompt("Credits ")
+    let grade = prompt("Value, followed by 'L' if with honors (leave empty if grade is without value) ")
+    try {
+      if (grade == "") gradebook.register(new Grade(name, credits))
+      else {
+        let honors = false
+        if (grade.includes("L")) {
+          honors = true
+          grade = grade.replace("L", "")
+        }
+        gradebook.register(new GradeWithValue(name, credits, grade, honors))
+      }
+    } catch (e) {
+      if (e instanceof InvalidGradeError) {
+        console.log("Grade not registered. Please insert a valid grade!")
+      } else if (e instanceof DuplicatedGradeError) {
+        console.log("Grade already registered")
+      } else throw e
+    }
+  }
+
+  function displayStartingGrade(gradebook) {
+    try {
+      console.log("Starting grade: " + gradebook.startingGrade + "/110")
+    } catch (e) {
+      if (e instanceof MissingCreditsError) {
+        console.log("Too early, student. You still lack " + gradebook.missingCredits + " credits")
+      } else throw e
+    }
+  }
+
+  // CLI - select gradebook type
+  let degree = prompt("Are you a (b) Bachelor or (m) Master student?")
+  while (degree != "b" && degree != "m") {
+    console.log("Please select a valid option!\n")
+    degree = prompt("Are you a Bachelor (b) or Master (m) student?")
+  }
+  let gb
+  if (degree == "b") {
+    gb = new BachelorGradeBook()
+    console.log("Welcome to your bachelor's gradebook, student!")
+  } else {
+    gb = new MasterGradeBook()
+    console.log("Welcome to your master's gradebook, student!")
+  }
+  // CLI - manage gradebook
+  let choice = getChoice()
+  while (choice != "x") {
+    switch (choice) {
+      case "a":
+        registerGrade(gb)
+        break
+      case "b":
+        console.log(gb.toString())
+        break
+      case "c":
+        console.log("Average grade: " + gb.average + "/30")
+        break
+      case "d":
+        displayStartingGrade(gb)
+        break
+      case "x":
+        break
+      default:
+        console.log("Please select a valid option!\n")
+    }
+    if (choice != "x") choice = getChoice()
+  }
